@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dual-Vehicle Spatial Trajectory & Pilot Escort Engine (SIH Prototype)</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: #1e293b;
+      --card-bg: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-target: #ef4444;
+      --accent-pilot: #06b6d4;
+      --accent-alert: #a855f7;
+      --border-color: #475569;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Top Navigation */
+    header {
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 56px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #38bdf8;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-badges {
+      display: flex;
+      gap: 10px;
+    }
+
+    .badge {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-target {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-target);
+      color: var(--accent-target);
+    }
+
+    .badge-pilot {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid var(--accent-pilot);
+      color: var(--accent-pilot);
+    }
+
+    /* Main Grid Layout */
+    .main-layout {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 56px);
+    }
+
+    /* Sidebar Controls */
+    .sidebar {
+      width: 380px;
+      background-color: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .input-group label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    input, select {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: #fff;
+      padding: 8px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #38bdf8;
+    }
+
+    button.btn-primary {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      width: 100%;
+    }
+
+    button.btn-primary:hover {
+      background: #0369a1;
+    }
+
+    /* Vehicle Profiles / Visual Re-ID */
+    .reid-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .reid-item {
+      background: rgba(15, 23, 42, 0.6);
+      padding: 6px 8px;
+      border-radius: 4px;
+      border-left: 3px solid var(--accent-target);
+    }
+
+    .reid-item.pilot-reid {
+      border-left-color: var(--accent-pilot);
+    }
+
+    .reid-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .reid-val {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* Alerts */
+    .alert-box {
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .alert-cotravel {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid var(--accent-alert);
+      color: #f3e8ff;
+    }
+
+    .alert-cotravel strong {
+      color: var(--accent-alert);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .alert-interception {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-target);
+      color: #fee2e2;
+    }
+
+    /* Content Area (Map + Table) */
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    #map {
+      flex: 1;
+      width: 100%;
+      background: #020617;
+    }
+
+    /* Bottom Chronology Table */
+    .table-container {
+      height: 220px;
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .table-header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .table-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+    }
+
+    th {
+      background: #0f172a;
+      color: var(--text-muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    tr:hover {
+      background: rgba(51, 65, 85, 0.4);
+    }
+
+    .tag {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .tag-target {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid #ef4444;
+    }
+
+    .tag-pilot {
+      background: rgba(6, 182, 212, 0.2);
+      color: #38bdf8;
+      border: 1px solid #06b6d4;
+    }
+
+    /* Radar Pulse Markers on Map */
+    .pulse-marker-target, .pulse-marker-pilot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .pulse-marker-target {
+      background: var(--accent-target);
+      box-shadow: 0 0 12px var(--accent-target);
+    }
+
+    .pulse-marker-target::after {
+      content: '';
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--accent-target);
+      border-radius: 50%;
+      top: -8px;
+      left: -8px;
+      animation: ripple 1.2s infinite ease-out;
+    }
+
+    .pulse-marker-pilot {
+      background: var(--accent-pilot);
+      box-shadow: 0 0 12px var(--accent-pilot);
+    }
+
+    .pulse-marker-pilot::after {
+      content: '';
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--accent-pilot);
+      border-radius: 50%;
+      top: -8px;
+      left: -8px;
+      animation: ripple 1.2s infinite ease-out;
+    }
+
+    @keyframes ripple {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div>
+        <div class="brand-title">Multi-Camera Spatial Trajectory Engine (SIH Prototype)</div>
+        <div class="brand-subtitle">Team Maverick • Problem ID: SIH26127 (BEL)</div>
+      </div>
+    </div>
+    <div class="header-badges">
+      <div class="badge badge-target">Target: BR01AB1234</div>
+      <div class="badge badge-pilot">Pilot / Escort: JH05XY9876</div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="main-layout">
+    
+    <!-- Sidebar Controls -->
+    <div class="sidebar">
+      
+      <!-- Primary Query Card -->
+      <div class="card">
+        <div class="card-title">Dual Target Surveillance Query</div>
+        <div class="input-group">
+          <label>Target 1 License Plate (Primary Suspect)</label>
+          <input type="text" id="targetPlate" value="BR01AB1234">
+        </div>
+        <div class="input-group">
+          <label>Target 2 License Plate (Pilot / Accomplice)</label>
+          <input type="text" id="pilotPlate" value="JH05XY9876">
+        </div>
+        <button class="btn-primary" onclick="reconstructDualTrajectories()">Reconstruct Trajectories</button>
+      </div>
+
+      <!-- Vehicle 1: Visual Re-ID Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>Target 1: Visual Re-ID Profile</span>
+          <span style="color: var(--accent-target); font-weight: bold;">YOLOv8 + CRNN (98.7%)</span>
+        </div>
+        <div class="reid-meta">
+          <div class="reid-item">
+            <div class="reid-label">Make & Model</div>
+            <div class="reid-val">Maruti Swift Dzire</div>
+          </div>
+          <div class="reid-item">
+            <div class="reid-label">Color Profile</div>
+            <div class="reid-val">Pearl White</div>
+          </div>
+          <div class="reid-item">
+            <div class="reid-label">Distinct Feature</div>
+            <div class="reid-val">Dent on Right Bumper</div>
+          </div>
+          <div class="reid-item">
+            <div class="reid-label">Vehicle Type</div>
+            <div class="reid-val">Commercial Sedan</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle 2: Visual Re-ID Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>Target 2: Pilot / Escort Profile</span>
+          <span style="color: var(--accent-pilot); font-weight: bold;">YOLOv8 + CRNN (97.4%)</span>
+        </div>
+        <div class="reid-meta">
+          <div class="reid-item pilot-reid">
+            <div class="reid-label">Make & Model</div>
+            <div class="reid-val">Mahindra Scorpio</div>
+          </div>
+          <div class="reid-item pilot-reid">
+            <div class="reid-label">Color Profile</div>
+            <div class="reid-val">Midnight Black</div>
+          </div>
+          <div class="reid-item pilot-reid">
+            <div class="reid-label">Role</div>
+            <div class="reid-val">Lead Route Scout</div>
+          </div>
+          <div class="reid-item pilot-reid">
+            <div class="reid-label">Delta Gap</div>
+            <div class="reid-val">~70m Ahead</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Co-Travel Alert Card -->
+      <div class="alert-box alert-cotravel">
+        <strong>⚠️ Pilot / Escort Convoy Alert Detected</strong>
+        <span>Both vehicles identified traveling synchronously across 3 consecutive nodes with a constant 60s delta gap. Possible coordinated convoy/escort escape.</span>
+      </div>
+
+      <!-- Predictive Interception -->
+      <div class="alert-box alert-interception">
+        <strong>🚨 Predictive Interception Vector</strong>
+        <span>Target Heading: Bailey Road Junction (~3.5 min ETA). Recommended action: Cordon checkpoint Node 03.</span>
+      </div>
+
+      <!-- Simulate Checkpoint Injection -->
+      <div class="card">
+        <div class="card-title">Simulate Edge Camera Capture</div>
+        <div class="input-group">
+          <label>Assign Event to Vehicle</label>
+          <select id="eventVehicle">
+            <option value="target">Target 1 (BR01AB1234 - White Swift)</option>
+            <option value="pilot">Target 2 (JH05XY9876 - Black Scorpio)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Camera Checkpoint</label>
+          <select id="eventCamera">
+            <option value="CAM_04">CAM_04 - Patna Junction Exit</option>
+            <option value="CAM_01">CAM_01 - Dak Bunglow Chowk</option>
+            <option value="CAM_02">CAM_02 - Gandhi Maidan North</option>
+          </select>
+        </div>
+        <button class="btn-primary" style="background: #334155; border: 1px solid var(--border-color);" onclick="injectManualEvent()">+ Inject Sighting Event</button>
+      </div>
+
+    </div>
+
+    <!-- Content Area: Map + Table -->
+    <div class="content-area">
+      <div id="map"></div>
+      
+      <!-- Forensic Ledger Table -->
+      <div class="table-container">
+        <div class="table-header">
+          <span>Forensic Multi-Vehicle Sighting Chronology</span>
+          <button style="background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 11px; font-weight: 600;" onclick="exportCSV()">Export Evidence CSV</button>
+        </div>
+        <div class="table-scroll">
+          <table id="evidenceTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Entity / Target</th>
+                <th>Camera Node</th>
+                <th>Location Landmark</th>
+                <th>Speed Log</th>
+                <th>Visual Re-ID Feature</th>
+                <th>Geo Coordinates</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <script>
+    // 1. Initialize Map centered on Patna nodes
+    const map = L.map('map').setView([25.6120, 85.1380], 14);
+
+    // Completely Free High-Res Esri Streets (No API key, No watermarks, No 403 blocks)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS'
+    }).addTo(map);
+
+    // Camera Node Geo Coordinates
+    const cameraLocations = {
+      "CAM_04": { name: "Patna Junction Exit", coords: [25.6025, 85.1310] },
+      "CAM_01": { name: "Dak Bunglow Chowk", coords: [25.6093, 85.1376] },
+      "CAM_02": { name: "Gandhi Maidan North", coords: [25.6186, 85.1458] }
+    };
+
+    // Plot static camera pins with inspection popups
+    Object.keys(cameraLocations).forEach(camId => {
+      const cam = cameraLocations[camId];
+      const marker = L.circleMarker(cam.coords, {
+        radius: 7,
+        fillColor: '#38bdf8',
+        color: '#ffffff',
+        weight: 2,
+        fillOpacity: 0.95
+      }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="font-family: sans-serif; font-size: 12px; min-width: 170px;">
+          <strong style="color: #0284c7;">${camId}</strong><br/>
+          <span>${cam.name}</span><br/>
+          <span style="color: #64748b; font-size: 10px;">ANPR Sensor: 1080p @ 30 FPS</span><br/>
+          <span style="color: #10b981; font-size: 11px;">Edge Node Status: Online</span>
+        </div>
+      `);
+    });
+
+    // Initial Chronological Sighting Records
+    let sightingRecords = [
+      { time: "10:04 AM", vehicle: "pilot", plate: "JH05XY9876", cam: "CAM_04", speed: 45, feature: "Black Scorpio (Scouting)", coords: "25.6025, 85.1310" },
+      { time: "10:05 AM", vehicle: "target", plate: "BR01AB1234", cam: "CAM_04", speed: 42, feature: "White Swift (Dent on Bumper)", coords: "25.6025, 85.1310" },
+      { time: "10:19 AM", vehicle: "pilot", plate: "JH05XY9876", cam: "CAM_01", speed: 40, feature: "Black Scorpio (Scouting)", coords: "25.6093, 85.1376" },
+      { time: "10:20 AM", vehicle: "target", plate: "BR01AB1234", cam: "CAM_01", speed: 38, feature: "White Swift (Dent on Bumper)", coords: "25.6093, 85.1376" },
+      { time: "10:34 AM", vehicle: "pilot", plate: "JH05XY9876", cam: "CAM_02", speed: 58, feature: "Black Scorpio (Scouting)", coords: "25.6186, 85.1458" },
+      { time: "10:35 AM", vehicle: "target", plate: "BR01AB1234", cam: "CAM_02", speed: 56, feature: "White Swift (Dent on Bumper)", coords: "25.6186, 85.1458" }
+    ];
+
+    let targetPolyline = null;
+    let pilotPolyline = null;
+    let targetPulseMarker = null;
+    let pilotPulseMarker = null;
+    let animationTimer = null;
+    let currentRouteCoords = [];
+
+    // Render Table
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      sightingRecords.forEach(row => {
+        const tr = document.createElement('tr');
+        const tagClass = row.vehicle === 'target' ? 'tag-target' : 'tag-pilot';
+        const labelText = row.vehicle === 'target' ? 'TARGET' : 'PILOT / ESCORT';
+
+        tr.innerHTML = `
+          <td>${row.time}</td>
+          <td><span class="tag ${tagClass}">${labelText}</span> <strong style="margin-left: 4px;">${row.plate}</strong></td>
+          <td>${row.cam}</td>
+          <td>${cameraLocations[row.cam]?.name || row.cam}</td>
+          <td><span style="color: ${row.speed > 50 ? '#f87171' : '#f8fafc'}; font-weight: 600;">${row.speed} km/h</span></td>
+          <td>${row.feature}</td>
+          <td>${row.coords}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Call OSRM API for road snapping
+    async function fetchSnappedRoute(coordsArray) {
+      const coordsString = coordsArray.map(c => `${c[1]},${c[0]}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`;
+      
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.routes && data.routes.length > 0) {
+          return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (err) {
+        console.warn("OSRM routing fallback to direct coords:", err);
+      }
+      return coordsArray;
+    }
+
+    // Live Continuous Vehicle Movement Loop
+    function startContinuousMovement(pathCoords) {
+      if (animationTimer) clearInterval(animationTimer);
+      if (pathCoords.length < 2) return;
+
+      let progress = 0;
+      const speed = 0.003; // Smooth travel speed
+
+      animationTimer = setInterval(() => {
+        progress = (progress + speed) % 1;
+
+        // Target Position (following behind)
+        const targetIdx = Math.floor(progress * (pathCoords.length - 1));
+        const targetCoord = pathCoords[targetIdx];
+
+        // Pilot Scout Position (travels slightly ahead ~18% gap)
+        const pilotProgress = (progress + 0.18) % 1;
+        const pilotIdx = Math.floor(pilotProgress * (pathCoords.length - 1));
+        const pilotCoord = pathCoords[pilotIdx];
+
+        if (targetPulseMarker && targetCoord) {
+          targetPulseMarker.setLatLng(targetCoord);
+        }
+        if (pilotPulseMarker && pilotCoord) {
+          pilotPulseMarker.setLatLng(pilotCoord);
+        }
+      }, 40);
+    }
+
+    // Reconstruct Dual Trajectories on Map
+    async function reconstructDualTrajectories() {
+      const waypoints = [
+        cameraLocations["CAM_04"].coords,
+        cameraLocations["CAM_01"].coords,
+        cameraLocations["CAM_02"].coords
+      ];
+
+      const snappedPath = await fetchSnappedRoute(waypoints);
+      currentRouteCoords = snappedPath;
+
+      // 1. Draw Target Route (Red Solid Line)
+      if (targetPolyline) map.removeLayer(targetPolyline);
+      targetPolyline = L.polyline(snappedPath, {
+        color: '#ef4444',
+        weight: 5,
+        opacity: 0.9
+      }).addTo(map);
+
+      // 2. Draw Pilot Escort Route (Cyan Dashed Line)
+      if (pilotPolyline) map.removeLayer(pilotPolyline);
+      pilotPolyline = L.polyline(snappedPath, {
+        color: '#06b6d4',
+        weight: 3.5,
+        dashArray: '8, 8',
+        opacity: 0.95
+      }).addTo(map);
+
+      // 3. Initialize Radar Pulse Markers
+      if (targetPulseMarker) map.removeLayer(targetPulseMarker);
+      if (pilotPulseMarker) map.removeLayer(pilotPulseMarker);
+
+      const targetIcon = L.divIcon({
+        className: 'pulse-marker-target',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+
+      const pilotIcon = L.divIcon({
+        className: 'pulse-marker-pilot',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+
+      pilotPulseMarker = L.marker(snappedPath[0], { icon: pilotIcon }).addTo(map)
+        .bindTooltip("Pilot Scout (JH05XY9876)", { permanent: true, direction: "top", offset: [0, -10] });
+
+      targetPulseMarker = L.marker(snappedPath[0], { icon: targetIcon }).addTo(map)
+        .bindTooltip("Target Suspect (BR01AB1234)", { permanent: true, direction: "bottom", offset: [0, 10] });
+
+      map.fitBounds(targetPolyline.getBounds(), { padding: [40, 40] });
+
+      // Start the animated road movement
+      startContinuousMovement(snappedPath);
+    }
+
+    // Manual Event Injection
+    function injectManualEvent() {
+      const vehicleType = document.getElementById('eventVehicle').value;
+      const camId = document.getElementById('eventCamera').value;
+      const cam = cameraLocations[camId];
+
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const newRecord = {
+        time: timeString,
+        vehicle: vehicleType,
+        plate: vehicleType === 'target' ? document.getElementById('targetPlate').value : document.getElementById('pilotPlate').value,
+        cam: camId,
+        speed: Math.floor(45 + Math.random() * 20),
+        feature: vehicleType === 'target' ? "White Swift (Dent on Bumper)" : "Black Scorpio (Scouting)",
+        coords: `${cam.coords[0].toFixed(4)}, ${cam.coords[1].toFixed(4)}`
+      };
+
+      sightingRecords.unshift(newRecord);
+      renderTable();
+    }
+
+    // CSV Export
+    function exportCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,Timestamp,Entity,Plate,CameraID,Location,Speed_kmh,Feature,Coordinates\n";
+      sightingRecords.forEach(r => {
+        csvContent += `${r.time},${r.vehicle},${r.plate},${r.cam},"${cameraLocations[r.cam]?.name || r.cam}",${r.speed},"${r.feature}",${r.coords}\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "Team_Maverick_Forensic_Evidence.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Initialize View on load
+    window.onload = () => {
+      renderTable();
+      reconstructDualTrajectories();
+    };
+  </script>
+</body>
+</html>
